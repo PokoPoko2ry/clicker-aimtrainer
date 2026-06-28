@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>AIM x CLICKER 3D</title>
+<style>
+  :root {
+    --bg: #0a0c14;
+    --panel: #141826;
+    --panel2: #1d2335;
+    --accent: #4ad9ff;
+    --accent2: #ff5d8f;
+    --gold: #ffd35c;
+    --text: #e7ecf5;
+    --muted: #8a93a8;
+    --good: #5cff9d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI","Yu Gothic UI",system-ui,sans-serif; overflow:hidden; user-select:none; }
+  #app { display:flex; height:100vh; width:100vw; }
+
+  #arenaWrap { position:relative; flex:1 1 auto; min-width:0; background:#06070d; }
+  #arena { display:block; width:100%; height:100%; cursor:none; touch-action:none; }
+
+  /* crosshair */
+  #cross { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:26px; height:26px; pointer-events:none; opacity:.9; }
+  #cross::before, #cross::after { content:""; position:absolute; background:var(--accent);
+    box-shadow:0 0 6px rgba(74,217,255,.8); }
+  #cross::before { left:50%; top:0; width:2px; height:100%; transform:translateX(-50%); }
+  #cross::after { top:50%; left:0; height:2px; width:100%; transform:translateY(-50%); }
+  #crossDot { position:absolute; left:50%; top:50%; width:4px; height:4px; border-radius:50%;
+    background:var(--accent2); transform:translate(-50%,-50%); box-shadow:0 0 6px var(--accent2); }
+  #cross.hidden, #crossDot.hidden { display:none; }
+
+  /* HUD */
+  #hud { position:absolute; top:0; left:0; right:0; display:flex; gap:14px; padding:14px 18px;
+    pointer-events:none; flex-wrap:wrap; }
+  .stat { background:rgba(20,24,38,0.78); border:1px solid #2a3147; border-radius:12px;
+    padding:7px 13px; min-width:80px; backdrop-filter:blur(4px); }
+  .stat .label { font-size:10px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
+  .stat .value { font-size:21px; font-weight:700; line-height:1.15; }
+  .value.gold{color:var(--gold)} .value.accent{color:var(--accent)}
+  .value.pink{color:var(--accent2)} .value.good{color:var(--good)}
+
+  /* popups layer */
+  #popups { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .pop { position:absolute; font-weight:800; font-size:18px; transform:translate(-50%,-50%);
+    text-shadow:0 1px 4px rgba(0,0,0,.6); animation:popup .9s ease-out forwards; }
+  @keyframes popup { 0%{opacity:0; transform:translate(-50%,-50%) scale(.6)}
+    15%{opacity:1; transform:translate(-50%,-90%) scale(1.1)}
+    100%{opacity:0; transform:translate(-50%,-180%) scale(1)} }
+
+  #comboFlash { position:absolute; left:50%; top:16%; transform:translateX(-50%);
+    font-size:38px; font-weight:800; color:var(--gold);
+    text-shadow:0 0 18px rgba(255,211,92,.6); pointer-events:none; opacity:0; }
+
+  /* center overlay */
+  #centerMsg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; text-align:center; background:rgba(6,7,13,.72); backdrop-filter:blur(3px); }
+  #centerMsg.hidden { display:none; }
+  #centerMsg h1 { font-size:50px; margin:0 0 10px; letter-spacing:.04em;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  #centerMsg p { color:var(--muted); margin:4px 0; font-size:15px; max-width:560px; line-height:1.6; }
+  .bigbtn { margin-top:18px; padding:14px 38px; font-size:18px; font-weight:700; color:#08111a;
+    background:linear-gradient(90deg,var(--accent),#7af0ff); border:none; border-radius:999px;
+    cursor:pointer; box-shadow:0 8px 24px rgba(74,217,255,.35); transition:transform .08s; }
+  .bigbtn:active { transform:scale(.96); }
+
+  /* shop */
+  #shop { flex:0 0 320px; background:var(--panel); border-left:1px solid #232a3d;
+    display:flex; flex-direction:column; overflow:hidden; }
+  #shopHead { padding:16px 18px 10px; border-bottom:1px solid #232a3d; }
+  #shopHead h2 { margin:0; font-size:18px; letter-spacing:.1em; color:var(--accent); }
+  #shopHead .bank { margin-top:6px; font-size:13px; color:var(--muted); }
+  #shopHead .bank b { color:var(--gold); font-size:16px; }
+  #upgrades { padding:12px; overflow-y:auto; flex:1 1 auto; }
+  .up { background:var(--panel2); border:1px solid #2a3147; border-radius:12px;
+    padding:11px 12px; margin-bottom:10px; cursor:pointer; transition:border-color .12s, transform .06s; }
+  .up:hover { border-color:var(--accent); }
+  .up:active { transform:scale(.985); }
+  .up.locked { opacity:.5; cursor:not-allowed; }
+  .up .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .up .name { font-weight:700; font-size:15px; }
+  .up .lvl { font-size:12px; color:var(--muted); }
+  .up .desc { font-size:12px; color:var(--muted); margin:4px 0 7px; line-height:1.4; }
+  .up .cost { font-size:13px; font-weight:700; color:var(--gold); display:flex; align-items:center; gap:5px; }
+  .up .cost.cant { color:var(--accent2); }
+  #settings { padding:12px 16px; border-top:1px solid #232a3d; }
+  .setRow { margin-bottom:10px; }
+  .setRow:last-child { margin-bottom:0; }
+  .setRow label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+  .setRow label b { color:var(--accent); font-size:13px; }
+  .setRow.inline { display:flex; align-items:center; gap:8px; }
+  .setRow.inline label { margin-bottom:0; }
+  #sensSlider { width:100%; accent-color:var(--accent); cursor:pointer; }
+  #invertChk { width:16px; height:16px; accent-color:var(--accent); cursor:pointer; }
+  .modeToggle { display:flex; gap:6px; }
+  .modeBtn { flex:1 1 0; padding:7px 0; font-size:13px; font-weight:700; color:var(--muted);
+    background:var(--panel2); border:1px solid #2a3147; border-radius:8px; cursor:pointer; transition:all .12s; }
+  .modeBtn:hover { border-color:var(--accent); }
+  .modeBtn.active { color:#08111a; background:var(--accent); border-color:var(--accent); }
+  .setRow.gamematch { border-top:1px solid #232a3d; padding-top:10px; margin-top:10px; }
+  #gameSel { width:100%; background:var(--panel2); color:var(--text); border:1px solid #2a3147;
+    border-radius:8px; padding:6px 8px; font-size:13px; cursor:pointer; }
+  .gmRow { display:flex; gap:8px; margin-top:8px; }
+  #gameSens { flex:1 1 auto; min-width:0; background:var(--panel2); color:var(--text);
+    border:1px solid #2a3147; border-radius:8px; padding:6px 8px; font-size:13px; }
+  .minibtn { flex:0 0 auto; padding:6px 14px; font-size:12px; font-weight:700; color:#08111a;
+    background:var(--accent); border:none; border-radius:8px; cursor:pointer; }
+  .minibtn:active { transform:scale(.96); }
+  #gameInfo { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.55; }
+  #gameInfo b { color:var(--accent); }
+  #shopFoot { padding:10px 16px; border-top:1px solid #232a3d; font-size:11px; color:var(--muted);
+    text-align:center; line-height:1.6; }
+  kbd { background:#2a3147; border-radius:5px; padding:1px 6px; font-size:11px; border:1px solid #3a4360; }
+  #err { position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    text-align:center; padding:30px; color:var(--accent2); font-size:15px; line-height:1.7; }
+
+  /* ---------- touch / mobile ---------- */
+  #app { height:100dvh; }
+  #touchUI { position:absolute; inset:0; pointer-events:none; z-index:6; display:none; }
+  body.touch.playing #touchUI { display:block; }
+  /* 左下: 視点スティック */
+  #stick { position:absolute; left:max(22px, env(safe-area-inset-left)); bottom:max(26px, env(safe-area-inset-bottom));
+    width:120px; height:120px; border-radius:50%; background:rgba(20,24,38,.42);
+    border:2px solid #2a3147; pointer-events:auto; touch-action:none; backdrop-filter:blur(2px); }
+  #stickKnob { position:absolute; left:50%; top:50%; width:50px; height:50px; margin:-25px 0 0 -25px;
+    border-radius:50%; background:rgba(74,217,255,.55); box-shadow:0 0 14px rgba(74,217,255,.5);
+    transition:transform .03s linear; }
+  /* 右下: 射撃ボタン */
+  #fireBtn { position:absolute; right:max(26px, env(safe-area-inset-right)); bottom:max(34px, env(safe-area-inset-bottom));
+    width:100px; height:100px; border-radius:50%; background:rgba(255,93,143,.28);
+    border:2px solid var(--accent2); color:#fff; font-size:13px; font-weight:800; letter-spacing:.1em;
+    pointer-events:auto; touch-action:none; box-shadow:0 0 18px rgba(255,93,143,.3); }
+  #fireBtn:active { background:rgba(255,93,143,.55); transform:scale(.96); }
+  /* 一時停止 */
+  #pauseBtn { position:absolute; top:max(12px, env(safe-area-inset-top)); right:max(12px, env(safe-area-inset-right));
+    width:46px; height:46px; border-radius:10px; background:rgba(20,24,38,.7);
+    border:1px solid #2a3147; color:var(--text); font-size:18px; pointer-events:auto; }
+  /* ショップ内「戻る」 (タッチ時のみ) */
+  #resumeShop { display:none; margin:0 12px 12px; }
+
+  body.touch #shop { display:none; }
+  body.touch #shop.overlay { display:flex; position:absolute; inset:0; z-index:20;
+    width:100%; flex:1 1 auto; border-left:none; }
+  body.touch #shop.overlay #resumeShop { display:block; }
+  body.touch #hud { gap:8px; padding:max(10px, env(safe-area-inset-top)) 12px 10px; }
+  body.touch .stat { min-width:60px; padding:5px 9px; }
+  body.touch .stat .value { font-size:17px; }
+  body.touch .stat .label { font-size:9px; }
+  body.touch #centerMsg h1 { font-size:34px; }
+  body.touch #centerMsg p { font-size:13px; padding:0 16px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="arenaWrap">
+    <canvas id="arena"></canvas>
+    <div id="cross" class="hidden"></div>
+    <div id="crossDot" class="hidden"></div>
+    <div id="popups"></div>
+    <div id="comboFlash"></div>
+    <div id="hud">
+      <div class="stat"><div class="label">Score</div><div class="value accent" id="hScore">0</div></div>
+      <div class="stat"><div class="label">Time</div><div class="value" id="hTime">60.0</div></div>
+      <div class="stat"><div class="label">Combo</div><div class="value pink" id="hCombo">0</div></div>
+      <div class="stat"><div class="label">Accuracy</div><div class="value good" id="hAcc">100%</div></div>
+      <div class="stat"><div class="label">Wave</div><div class="value" id="hWave">1</div></div>
+      <div class="stat"><div class="label">Points</div><div class="value gold" id="hPts">0</div></div>
+    </div>
+    <div id="centerMsg">
+      <h1>AIM × CLICKER 3D</h1>
+      <p>クリックで照準ロック → マウスで視点を動かして、奥の的を中央クロスヘアで狙い撃ち。素早く繋ぐほど高得点。</p>
+      <p>稼いだ <b style="color:var(--gold)">Points</b> で右のショップを永続強化してく放置成長エイトレ。<br>
+      <kbd>ESC</kbd> で照準解除してショップ購入 → 画面クリックで再開。</p>
+      <button id="startBtn" class="bigbtn">START</button>
+    </div>
+    <div id="err"></div>
+    <div id="touchUI">
+      <div id="stick"><div id="stickKnob"></div></div>
+      <button id="fireBtn">FIRE</button>
+      <button id="pauseBtn">⏸</button>
+    </div>
+  </div>
+
+  <div id="shop">
+    <div id="shopHead">
+      <h2>UPGRADE SHOP</h2>
+      <div class="bank">所持ポイント: <b id="bankPts">0</b></div>
+    </div>
+    <button id="resumeShop" class="bigbtn">▶ ゲームに戻る</button>
+    <div id="upgrades"></div>
+    <div id="settings">
+      <div class="setRow">
+        <label>練習モード</label>
+        <div class="modeToggle">
+          <button id="modeFlick" class="modeBtn active">フリック</button>
+          <button id="modeTrack" class="modeBtn">トラッキング</button>
+        </div>
+      </div>
+      <div class="setRow">
+        <label for="sensSlider">マウス感度 <b id="sensVal">1.00</b>×</label>
+        <input type="range" id="sensSlider" min="0.1" max="3" step="0.01" value="1" />
+      </div>
+      <div class="setRow inline">
+        <label for="invertChk">Y軸反転</label>
+        <input type="checkbox" id="invertChk" />
+      </div>
+      <div class="setRow gamematch">
+        <label>ゲーム感度から合わせる</label>
+        <select id="gameSel">
+          <option value="">— ゲーム選択 —</option>
+          <option value="0.022">Apex Legends</option>
+          <option value="0.0066">Overwatch 2</option>
+        </select>
+        <div class="gmRow">
+          <input type="number" id="gameSens" min="0.01" step="0.01" placeholder="ゲーム内sens" />
+          <button id="applyGame" class="minibtn">適用</button>
+        </div>
+        <div id="gameInfo"></div>
+      </div>
+    </div>
+    <div id="shopFoot">
+      クリックで射撃 / ESCで照準解除して強化購入<br>
+      <kbd>R</kbd> リスタート　<kbd>ESC</kbd> ポーズ＆ショップ
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const canvas = document.getElementById('arena');
+const wrap = document.getElementById('arenaWrap');
+const popups = document.getElementById('popups');
+const crossEl = document.getElementById('cross');
+const crossDot = document.getElementById('crossDot');
+const shop = document.getElementById('shop');
+
+// タッチ端末判定（PC操作はそのまま、タッチ時だけ別系統を有効化）
+const IS_TOUCH = window.matchMedia('(pointer:coarse)').matches
+  || navigator.maxTouchPoints > 0 || ('ontouchstart' in window);
+const stick = document.getElementById('stick');
+const stickKnob = document.getElementById('stickKnob');
+const fireBtn = document.getElementById('fireBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const resumeShop = document.getElementById('resumeShop');
+
+// ---------- renderer / scene ----------
+let renderer, scene, camera;
+let W = wrap.clientWidth, H = wrap.clientHeight;
+
+function initThree() {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(W, H, false);
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x06070d);
+  scene.fog = new THREE.Fog(0x06070d, 14, 30);
+
+  camera = new THREE.PerspectiveCamera(75, W / H, 0.1, 100);
+  camera.position.set(0, 2.5, 2);
+
+  // lights
+  const amb = new THREE.AmbientLight(0x5566aa, 0.6);
+  scene.add(amb);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(3, 8, 6);
+  scene.add(dir);
+  const p1 = new THREE.PointLight(0x4ad9ff, 0.7, 40); p1.position.set(-6, 4, 0); scene.add(p1);
+  const p2 = new THREE.PointLight(0xff5d8f, 0.6, 40); p2.position.set(6, 4, 0); scene.add(p2);
+
+  buildRoom();
+}
+
+function buildRoom() {
+  // far wall
+  const wallMat = new THREE.MeshStandardMaterial({ color:0x10141f, roughness:0.95, metalness:0.0 });
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(40, 24), wallMat);
+  back.position.set(0, 4, -11); scene.add(back);
+  // floor
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40),
+    new THREE.MeshStandardMaterial({ color:0x0b0e16, roughness:1 }));
+  floor.rotation.x = -Math.PI/2; floor.position.y = 0; scene.add(floor);
+  // grid helper on floor
+  const grid = new THREE.GridHelper(40, 40, 0x223052, 0x16203a);
+  grid.position.y = 0.01; scene.add(grid);
+  // side walls
+  const sideMat = new THREE.MeshStandardMaterial({ color:0x0d1019, roughness:1 });
+  const left = new THREE.Mesh(new THREE.PlaneGeometry(40, 24), sideMat);
+  left.rotation.y = Math.PI/2; left.position.set(-14, 4, -3); scene.add(left);
+  const right = left.clone(); right.rotation.y = -Math.PI/2; right.position.x = 14; scene.add(right);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), sideMat);
+  ceil.rotation.x = Math.PI/2; ceil.position.y = 13; scene.add(ceil);
+}
+
+// ---------- audio ----------
+let actx = null;
+function audio(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ actx=null; } } return actx; }
+function beep(freq,dur,type,vol){ const a=audio(); if(!a) return;
+  const o=a.createOscillator(), g=a.createGain(); o.type=type||'sine'; o.frequency.value=freq;
+  o.connect(g); g.connect(a.destination); const t=a.currentTime;
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.18,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.1)); o.start(t); o.stop(t+(dur||0.1)+0.02); }
+function sndHit(c){ beep(420+Math.min(c,30)*22,0.09,'triangle',0.16); }
+function sndMiss(){ beep(150,0.14,'sawtooth',0.12); }
+function sndBuy(){ beep(660,0.07,'square',0.12); setTimeout(()=>beep(880,0.09,'square',0.12),60); }
+function sndBonus(){ beep(880,0.08,'triangle',0.15); setTimeout(()=>beep(1320,0.12,'triangle',0.15),70); }
+
+// ---------- upgrades ----------
+const upgrades = [
+  { id:'mult', name:'得点倍率', icon:'✖', desc:'撃破スコアとポイント獲得が増える。基礎火力。', base:20, growth:1.55, lvl:0, max:40, effect:l=>1+l*0.25 },
+  { id:'size', name:'的のデカさ補正', icon:'◎', desc:'的が少しずつ大きくなって当てやすくなる。', base:30, growth:1.6, lvl:0, max:20, effect:l=>1+l*0.06 },
+  { id:'life', name:'的の滞在時間', icon:'⏱', desc:'的が消えるまでの猶予が伸びる。取りこぼし減。', base:35, growth:1.6, lvl:0, max:18, effect:l=>1+l*0.10 },
+  { id:'spawn', name:'同時出現数', icon:'⧉', desc:'同時に出る的の上限が増える。手数アップ。', base:60, growth:1.75, lvl:0, max:8, effect:l=>3+l },
+  { id:'combo', name:'コンボ保護', icon:'🛡', desc:'ミスしてもコンボが一定割合残る。', base:80, growth:1.9, lvl:0, max:8, effect:l=>Math.min(0.8,l*0.1) },
+  { id:'bot', name:'オートボット', icon:'🤖', desc:'自動で的を撃つ相棒。放置でも稼ぐ。', base:120, growth:1.8, lvl:0, max:12, effect:l=>l },
+  { id:'botspd', name:'ボット連射力', icon:'⚡', desc:'オートボットの発射間隔を短縮。', base:100, growth:1.7, lvl:0, max:15, effect:l=>1/(1+l*0.18) },
+  { id:'gold', name:'ポイント効率', icon:'💰', desc:'撃破時のPoints取得量が増加。', base:50, growth:1.65, lvl:0, max:30, effect:l=>1+l*0.2 },
+];
+function upCost(u){ return Math.floor(u.base*Math.pow(u.growth,u.lvl)); }
+function eff(id){ const u=upgrades.find(x=>x.id===id); return u.effect(u.lvl); }
+
+// ---------- state ----------
+const ROUND_TIME = 60;
+const G = {
+  running:false, paused:false, over:false, locked:false,
+  mode:'flick',
+  score:0, points:0, combo:0, bestCombo:0, hits:0, shots:0,
+  timeLeft:ROUND_TIME, wave:1, elapsed:0,
+  targets:[], effects:[], lastSpawn:0, botTimer:0,
+  holding:false, onTarget:false, trackHeld:0, trackHit:0, trackStreak:0, bestStreak:0,
+};
+
+function difficulty(){ return G.elapsed; }
+function spawnInterval(){ return Math.max(0.30, 0.95 - difficulty()*0.012); }
+function baseRadius(){ const shrink=Math.max(0.5,1-difficulty()*0.006); return 0.6*shrink*eff('size'); }
+function targetLife(){ const harder=Math.max(0.55,1-difficulty()*0.005); return (2.4*harder)*eff('life'); }
+function maxTargets(){ return Math.round(eff('spawn')); }
+
+// ---------- target meshes ----------
+const sphereGeo = new THREE.SphereGeometry(1, 24, 18);
+function spawnTarget(){
+  const r = baseRadius();
+  const golden = Math.random() < 0.06;
+  const x = -7.5 + Math.random()*15;
+  const y = 0.7 + Math.random()*4.6;
+  const z = -11 + 0.3 + Math.random()*3.5; // closer (bigger) .. farther (smaller)
+  const mat = new THREE.MeshStandardMaterial({
+    color: golden ? 0xffae20 : 0xd61f5c,
+    emissive: golden ? 0xffd35c : 0xff3d72,
+    emissiveIntensity: 0.5, roughness:0.35, metalness:0.1,
+  });
+  const mesh = new THREE.Mesh(sphereGeo, mat);
+  mesh.position.set(x, y, z);
+  mesh.scale.setScalar(r);
+  scene.add(mesh);
+  // inner bullseye dot
+  const dot = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color:0xffffff }));
+  dot.scale.setScalar(0.28); mesh.add(dot);
+  G.targets.push({ mesh, r, born:G.elapsed, life:targetLife()*(golden?1.2:1), golden, pulse:Math.random()*6.28 });
+}
+
+function projToScreen(pos){
+  const v = pos.clone().project(camera);
+  return { x:(v.x*0.5+0.5)*W, y:(-v.y*0.5+0.5)*H, infront:v.z<1 };
+}
+
+function burst(pos, colorHex){
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.5, 0.62, 28),
+    new THREE.MeshBasicMaterial({ color:colorHex, transparent:true, side:THREE.DoubleSide })
+  );
+  ring.position.copy(pos);
+  ring.lookAt(camera.position);
+  scene.add(ring);
+  G.effects.push({ mesh:ring, age:0, life:0.45, type:'ring' });
+  const flash = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color:colorHex, transparent:true }));
+  flash.position.copy(pos); flash.scale.setScalar(0.4);
+  scene.add(flash);
+  G.effects.push({ mesh:flash, age:0, life:0.25, type:'flash' });
+}
+
+function addPop(pos, text, color){
+  const s = projToScreen(pos);
+  if (!s.infront) return;
+  const el = document.createElement('div');
+  el.className = 'pop'; el.textContent = text; el.style.color = color;
+  el.style.left = s.x+'px'; el.style.top = s.y+'px';
+  popups.appendChild(el);
+  setTimeout(()=>el.remove(), 950);
+}
+
+function removeTarget(t){
+  const i = G.targets.indexOf(t); if(i>=0) G.targets.splice(i,1);
+  if (t.mesh.parent) scene.remove(t.mesh);
+  t.mesh.material.dispose();
+}
+
+function killTarget(t, byBot){
+  const pos = t.mesh.position.clone();
+  removeTarget(t);
+  if (!byBot){ G.combo++; if(G.combo>G.bestCombo) G.bestCombo=G.combo; }
+  const comboMult = 1 + Math.min(G.combo,50)*0.05;
+  const goldMult = t.golden ? 5 : 1;
+  const gained = Math.round(10*eff('mult')*comboMult*goldMult);
+  const pts = Math.round(gained*0.5*eff('gold'));
+  G.score += gained; G.points += pts;
+  burst(pos, t.golden?0xffd35c:(byBot?0x7af0ff:0xff5d8f));
+  addPop(pos, '+'+gained, t.golden?'#ffd35c':'#e7ecf5');
+  if (t.golden){ sndBonus(); flashCombo('BONUS!'); }
+  else if (!byBot){ sndHit(G.combo); if(G.combo>0 && G.combo%10===0) flashCombo(G.combo+' COMBO!'); }
+  renderShop();
+}
+
+// ---------- combo flash ----------
+const comboFlash = document.getElementById('comboFlash');
+let flashTimer=null;
+function flashCombo(text){
+  comboFlash.textContent=text;
+  comboFlash.style.transition='none';
+  comboFlash.style.opacity='1';
+  comboFlash.style.transform='translateX(-50%) scale(1.25)';
+  if(flashTimer) clearTimeout(flashTimer);
+  requestAnimationFrame(()=>{ comboFlash.style.transition='opacity .6s, transform .6s';
+    comboFlash.style.opacity='0'; comboFlash.style.transform='translateX(-50%) scale(1)'; });
+}
+
+// ---------- pointer lock + look ----------
+let yaw=0, pitch=0;
+const BASE_SENS=0.0022, YAW_LIM=0.7, PITCH_LIM=0.55;
+let sensMult=1, invertY=false, SENS=BASE_SENS;
+
+// load saved settings
+try {
+  const sv=localStorage.getItem('aim_sens'); if(sv!=null) sensMult=parseFloat(sv)||1;
+  invertY = localStorage.getItem('aim_invert')==='1';
+} catch(e){}
+SENS = BASE_SENS*sensMult;
+
+const sensSlider=document.getElementById('sensSlider');
+const sensVal=document.getElementById('sensVal');
+const invertChk=document.getElementById('invertChk');
+function applySettingsUI(){
+  sensSlider.value=sensMult;
+  sensVal.textContent=sensMult.toFixed(2);
+  invertChk.checked=invertY;
+}
+applySettingsUI();
+sensSlider.addEventListener('input', ()=>{
+  sensMult=parseFloat(sensSlider.value);
+  SENS=BASE_SENS*sensMult;
+  sensVal.textContent=sensMult.toFixed(2);
+  try{ localStorage.setItem('aim_sens', String(sensMult)); }catch(e){}
+});
+invertChk.addEventListener('change', ()=>{
+  invertY=invertChk.checked;
+  try{ localStorage.setItem('aim_invert', invertY?'1':'0'); }catch(e){}
+});
+
+// ---- ゲーム感度から合わせる ----
+// coef = そのゲームの「ゲーム内sens 1 あたりの deg/count」。
+// 我々の視点は movementX(px) 1 につき SENS rad 回す。OS加速OFF＆同DPIなら px≈count とみなせるので
+// 目標 SENS = coef * gameSens * (π/180) [rad/count]。
+const gameSel=document.getElementById('gameSel');
+const gameSens=document.getElementById('gameSens');
+const applyGameBtn=document.getElementById('applyGame');
+const gameInfo=document.getElementById('gameInfo');
+const GAME_NAMES={ '0.022':'Apex Legends', '0.0066':'Overwatch 2' };
+function applyGameSens(){
+  const coef=parseFloat(gameSel.value);
+  const gs=parseFloat(gameSens.value);
+  if(!coef){ gameInfo.textContent='まずゲームを選んでね。'; return; }
+  if(!(gs>0)){ gameInfo.textContent='ゲーム内sensを入れてね。'; return; }
+  const target=coef*gs*Math.PI/180;     // rad per count(px)
+  let mult=target/BASE_SENS;
+  let clamped=false;
+  if(mult<0.1){ mult=0.1; clamped=true; }
+  if(mult>3){ mult=3; clamped=true; }
+  sensMult=Math.round(mult*100)/100;
+  SENS=BASE_SENS*sensMult;
+  applySettingsUI();
+  try{ localStorage.setItem('aim_sens', String(sensMult)); }catch(e){}
+  const name=GAME_NAMES[gameSel.value]||'';
+  gameInfo.innerHTML=name+' sens '+gs+' → 内部倍率 <b>'+sensMult.toFixed(2)+'×</b> にセット。'
+    +(clamped?'<br><span style="color:var(--accent2)">※スライダー範囲外だったので丸めた。上限広げたいなら言って。</span>':'')
+    +'<br>前提: このゲームと同じマウスDPI＆Windowsのマウス加速OFF。';
+}
+applyGameBtn.addEventListener('click', applyGameSens);
+gameSens.addEventListener('keydown', (e)=>{ if(e.key==='Enter') applyGameSens(); });
+
+function applyLook(){
+  yaw = Math.max(-YAW_LIM, Math.min(YAW_LIM, yaw));
+  pitch = Math.max(-PITCH_LIM, Math.min(PITCH_LIM, pitch));
+  const e = new THREE.Euler(pitch, yaw, 0, 'YXZ');
+  camera.quaternion.setFromEuler(e);
+}
+let justLocked=false;       // ロック取得直後の初回mousemoveを捨てるフラグ
+const SPIKE=180;            // これ超えのデルタはポインターロック境界のスパイクとみなし丸ごと捨てる
+document.addEventListener('mousemove', (e)=>{
+  if(!G.locked) return;
+  // ロック取り直し直後の最初の1発は溜まった巨大デルタが来るので無視
+  if(justLocked){ justLocked=false; return; }
+  const dx=e.movementX, dy=e.movementY;
+  // 端でのスパイク（単発の巨大デルタ）は切り詰めず丸ごと無視する
+  if(Math.abs(dx)>SPIKE || Math.abs(dy)>SPIKE) return;
+  yaw -= dx*SENS;
+  pitch -= dy*SENS*(invertY?-1:1);
+  applyLook();
+});
+document.addEventListener('pointerlockchange', ()=>{
+  G.locked = (document.pointerLockElement === canvas);
+  crossEl.classList.toggle('hidden', !G.locked);
+  crossDot.classList.toggle('hidden', !G.locked);
+  if(G.locked) justLocked=true; else G.holding=false;
+  if (G.running && !G.over){
+    if (G.locked){ G.paused=false; centerMsg.classList.add('hidden'); }
+    else { G.paused=true; showPause(); }
+  }
+});
+function requestLock(){
+  if(IS_TOUCH){ enterPlay(); return; }   // スマホ: ポインターロックは無いので擬似ロックで開始
+  canvas.requestPointerLock();
+}
+
+// shooting
+const raycaster = new THREE.Raycaster();
+function shootFlick(){
+  G.shots++;
+  raycaster.setFromCamera({x:0,y:0}, camera);
+  const meshes = G.targets.map(t=>t.mesh);
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (hits.length){
+    const m = hits[0].object;
+    const t = G.targets.find(tt=>tt.mesh===m);
+    if (t){ G.hits++; killTarget(t,false); }
+  } else {
+    G.combo = Math.floor(G.combo*eff('combo'));
+    sndMiss();
+  }
+  refreshHUD();
+}
+canvas.addEventListener('mousedown', (e)=>{
+  if (!G.running || G.over) return;
+  if (!G.locked){ requestLock(); return; }
+  if (G.mode==='flick') shootFlick();
+  else G.holding = true;   // トラッキング: 押しっぱなしの間だけ加点
+});
+canvas.addEventListener('mouseup', ()=>{ G.holding=false; });
+
+// ---- モード切替トグル ----
+const modeFlickBtn=document.getElementById('modeFlick');
+const modeTrackBtn=document.getElementById('modeTrack');
+try{ const m=localStorage.getItem('aim_mode'); if(m==='tracking'||m==='flick') G.mode=m; }catch(e){}
+function syncModeButtons(){
+  modeFlickBtn.classList.toggle('active', G.mode==='flick');
+  modeTrackBtn.classList.toggle('active', G.mode==='tracking');
+}
+function setMode(m){
+  G.mode=m; syncModeButtons();
+  try{ localStorage.setItem('aim_mode', m); }catch(e){}
+  startGame();   // モード変更で即リスタート
+}
+modeFlickBtn.addEventListener('click', ()=>setMode('flick'));
+modeTrackBtn.addEventListener('click', ()=>setMode('tracking'));
+syncModeButtons();
+
+// ---------- shop ----------
+const upWrap = document.getElementById('upgrades');
+function buildShop(){
+  upWrap.innerHTML='';
+  upgrades.forEach(u=>{
+    const el=document.createElement('div'); el.className='up'; el.dataset.id=u.id;
+    el.innerHTML='<div class="top"><span class="name">'+u.icon+' '+u.name+
+      '</span><span class="lvl">Lv.<b data-lvl>'+u.lvl+'</b>/'+u.max+'</span></div>'+
+      '<div class="desc">'+u.desc+'</div>'+
+      '<div class="cost"><span data-cost>'+upCost(u)+'</span> pts</div>';
+    el.addEventListener('click', ()=>buy(u.id));
+    upWrap.appendChild(el);
+  });
+  renderShop();
+}
+function buy(id){
+  const u=upgrades.find(x=>x.id===id); if(!u||u.lvl>=u.max) return;
+  const c=upCost(u); if(G.points<c){ sndMiss(); return; }
+  G.points-=c; u.lvl++; sndBuy(); renderShop(); refreshHUD();
+}
+function renderShop(){
+  document.getElementById('bankPts').textContent=Math.floor(G.points);
+  upgrades.forEach(u=>{
+    const el=upWrap.querySelector('[data-id="'+u.id+'"]'); if(!el) return;
+    const maxed=u.lvl>=u.max, c=upCost(u);
+    el.querySelector('[data-lvl]').textContent=u.lvl;
+    const costWrap=el.querySelector('.cost');
+    if(maxed){ costWrap.innerHTML='MAX'; el.classList.add('locked'); }
+    else { el.querySelector('[data-cost]').textContent=c;
+      costWrap.classList.toggle('cant', G.points<c); el.classList.toggle('locked', G.points<c); }
+  });
+}
+
+// ---------- HUD ----------
+function refreshHUD(){
+  document.getElementById('hScore').textContent=Math.floor(G.score);
+  document.getElementById('hTime').textContent=G.timeLeft.toFixed(1);
+  document.getElementById('hWave').textContent=G.wave;
+  document.getElementById('hPts').textContent=Math.floor(G.points);
+  document.getElementById('bankPts').textContent=Math.floor(G.points);
+  if(G.mode==='flick'){
+    document.getElementById('hCombo').textContent=G.combo;
+    const acc=G.shots===0?100:Math.round((G.hits/G.shots)*100);
+    document.getElementById('hAcc').textContent=acc+'%';
+  } else {
+    document.getElementById('hCombo').textContent=G.trackStreak.toFixed(1)+'s';
+    const acc=G.trackHeld<=0?100:Math.round((G.trackHit/G.trackHeld)*100);
+    document.getElementById('hAcc').textContent=acc+'%';
+  }
+}
+
+// ---------- tracking mode ----------
+const TRACK_B={ xmin:-7.5, xmax:7.5, ymin:0.7, ymax:5.3, zmin:-10.7, zmax:-7.8 };
+function rand(a,b){ return a+Math.random()*(b-a); }
+function setTrackGoal(t){
+  t.goal={ x:rand(TRACK_B.xmin,TRACK_B.xmax), y:rand(TRACK_B.ymin,TRACK_B.ymax), z:rand(TRACK_B.zmin,TRACK_B.zmax) };
+}
+function spawnTrackTarget(){
+  const r=Math.max(0.5, baseRadius()*1.05);
+  const mat=new THREE.MeshStandardMaterial({ color:0xd61f5c, emissive:0xff3d72, emissiveIntensity:0.5, roughness:0.35, metalness:0.1 });
+  const mesh=new THREE.Mesh(sphereGeo, mat);
+  mesh.position.set(0, 2.8, -9.2); mesh.scale.setScalar(r);
+  scene.add(mesh);
+  const dot=new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color:0xffffff }));
+  dot.scale.setScalar(0.28); mesh.add(dot);
+  const t={ mesh, r, born:G.elapsed, life:Infinity, golden:false, pulse:0, goal:null, track:true };
+  setTrackGoal(t);
+  G.targets.push(t);
+}
+function trackSpeed(){ return 2.6 + difficulty()*0.06; }
+function updateTracking(dt){
+  let t=G.targets[0];
+  if(!t){ spawnTrackTarget(); t=G.targets[0]; }
+  const p=t.mesh.position, g=t.goal;
+  const dx=g.x-p.x, dy=g.y-p.y, dz=g.z-p.z;
+  const d=Math.hypot(dx,dy,dz);
+  if(d<0.4){ setTrackGoal(t); }
+  else { const step=Math.min(d, trackSpeed()*dt); p.x+=dx/d*step; p.y+=dy/d*step; p.z+=dz/d*step; }
+  // 中央レイで「乗ってるか」判定
+  raycaster.setFromCamera({x:0,y:0}, camera);
+  G.onTarget = raycaster.intersectObject(t.mesh,false).length>0;
+  t.mesh.material.emissiveIntensity = G.onTarget ? 1.3 : 0.45;
+  crossDot.style.background = G.onTarget ? 'var(--good)' : 'var(--accent2)';
+  // スコア: 押しっぱ かつ 乗ってる間だけ加点
+  if(G.holding && G.onTarget){
+    G.trackHeld+=dt; G.trackHit+=dt; G.trackStreak+=dt;
+    if(G.trackStreak>G.bestStreak) G.bestStreak=G.trackStreak;
+    const comboMult=1+Math.min(G.trackStreak,12)*0.08;
+    const gain=75*eff('mult')*comboMult*dt;
+    G.score+=gain; G.points+=gain*0.5*eff('gold');
+  } else if(G.holding){
+    G.trackHeld+=dt; G.trackStreak=0;
+  }
+}
+
+// ---------- bots ----------
+function updateBots(dt){
+  const bots=eff('bot'); if(bots<=0) return;
+  G.botTimer-=dt;
+  const interval=(1.1*eff('botspd'))/Math.max(1,bots);
+  if(G.botTimer<=0){
+    G.botTimer=interval;
+    if(G.mode==='flick'){
+      if(G.targets.length>0){
+        let oldest=G.targets[0]; for(const t of G.targets) if(t.born<oldest.born) oldest=t;
+        killTarget(oldest,true);
+      }
+    } else {
+      // トラッキング: ボットは自動で乗せてる扱いで加点
+      const gain=Math.round(12*eff('mult'));
+      G.score+=gain; G.points+=Math.round(gain*0.5*eff('gold'));
+      const t=G.targets[0]; if(t) burst(t.mesh.position.clone(), 0x7af0ff);
+      renderShop();
+    }
+  }
+}
+
+// ---------- loop ----------
+let lastT=0;
+function loop(ts){
+  if(!lastT) lastT=ts;
+  let dt=(ts-lastT)/1000; lastT=ts; if(dt>0.1) dt=0.1;
+
+  if(G.running && !G.paused && !G.over){
+    // タッチ: スティックの倒し量で視点を連続移動
+    if(IS_TOUCH && (stickX!==0 || stickY!==0)){
+      yaw   -= stickX*STICK_SPEED*sensMult*dt;
+      pitch -= stickY*STICK_SPEED*sensMult*dt*(invertY?-1:1);
+      applyLook();
+    }
+    G.elapsed+=dt; G.timeLeft-=dt; G.wave=1+Math.floor(G.elapsed/10);
+    if(G.timeLeft<=0){ G.timeLeft=0; endGame(); }
+    if(G.mode==='flick'){
+      G.lastSpawn+=dt;
+      if(G.lastSpawn>=spawnInterval() && G.targets.length<maxTargets()){ G.lastSpawn=0; spawnTarget(); }
+      // expire
+      for(let i=G.targets.length-1;i>=0;i--){
+        const t=G.targets[i];
+        if(G.elapsed-t.born>=t.life){
+          const pos=t.mesh.position.clone(); removeTarget(t);
+          if(!t.golden){ G.combo=Math.floor(G.combo*eff('combo')); addPop(pos,'MISS','#ff5d8f'); }
+        }
+      }
+    } else {
+      updateTracking(dt);
+    }
+    updateBots(dt);
+    refreshHUD();
+  }
+
+  // animate targets (pulse + death blink)
+  for(const t of G.targets){
+    t.pulse+=dt*4;
+    if(t.track){ t.mesh.scale.setScalar(t.r*(0.97+Math.sin(t.pulse)*0.03)); continue; } // 発光はupdateTracking側で制御
+    const ageFrac=(G.elapsed-t.born)/t.life;
+    const s=t.r*(0.97+Math.sin(t.pulse)*0.03);
+    t.mesh.scale.setScalar(s);
+    if(ageFrac>0.7){ t.mesh.material.emissiveIntensity=0.3+0.6*(Math.sin(G.elapsed*26)*0.5+0.5); }
+    else t.mesh.material.emissiveIntensity=0.5;
+  }
+  // effects
+  for(let i=G.effects.length-1;i>=0;i--){
+    const fx=G.effects[i]; fx.age+=dt;
+    const k=fx.age/fx.life;
+    if(k>=1){ scene.remove(fx.mesh); fx.mesh.material.dispose(); if(fx.mesh.geometry.type==='RingGeometry') fx.mesh.geometry.dispose(); G.effects.splice(i,1); continue; }
+    fx.mesh.material.opacity=1-k;
+    if(fx.type==='ring'){ const sc=1+k*8; fx.mesh.scale.setScalar(sc); fx.mesh.lookAt(camera.position); }
+    else { fx.mesh.scale.setScalar(0.4+k*1.6); }
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+// ---------- start / end / pause ----------
+const centerMsg=document.getElementById('centerMsg');
+function clearTargets(){
+  for(const t of G.targets){ if(t.mesh.parent) scene.remove(t.mesh); t.mesh.material.dispose(); }
+  G.targets.length=0;
+  for(const fx of G.effects){ scene.remove(fx.mesh); fx.mesh.material.dispose(); }
+  G.effects.length=0;
+  popups.innerHTML='';
+}
+function startGame(){
+  audio();
+  clearTargets();
+  G.running=true; G.over=false; G.paused=false;
+  G.score=0; G.combo=0; G.bestCombo=0; G.hits=0; G.shots=0;
+  G.holding=false; G.onTarget=false; G.trackHeld=0; G.trackHit=0; G.trackStreak=0; G.bestStreak=0;
+  G.timeLeft=ROUND_TIME; G.elapsed=0; G.wave=1; G.lastSpawn=0; G.botTimer=0;
+  yaw=0; pitch=0; applyLook();
+  crossDot.style.background='';   // トラッキングの色フィードバックを既定に戻す
+  centerMsg.classList.add('hidden');
+  if(G.mode==='flick') spawnTarget(); else spawnTrackTarget();
+  refreshHUD(); renderShop();
+  requestLock();
+}
+function showPause(){
+  centerMsg.classList.remove('hidden');
+  centerMsg.innerHTML='<h1>PAUSED</h1>'+
+    '<p>照準を解除中。右のショップで強化を買える。<br>画面をクリックすると再開して照準ロック。</p>'+
+    '<button id="resumeBtn" class="bigbtn">再開（クリックでもOK）</button>';
+  document.getElementById('resumeBtn').addEventListener('click', requestLock);
+}
+function endGame(){
+  G.over=true; G.running=false;
+  if(document.pointerLockElement) document.exitPointerLock();
+  document.body.classList.remove('playing');
+  shop.classList.remove('overlay');
+  crossEl.classList.add('hidden'); crossDot.classList.add('hidden');
+  crossDot.style.background='';
+  centerMsg.classList.remove('hidden');
+  let stat;
+  if(G.mode==='flick'){
+    const acc=G.shots===0?100:Math.round((G.hits/G.shots)*100);
+    stat='<p>最高コンボ <b style="color:var(--accent2)">'+G.bestCombo+'</b> ／ 命中率 <b style="color:var(--good)">'+acc+'%</b></p>';
+  } else {
+    const acc=G.trackHeld<=0?100:Math.round((G.trackHit/G.trackHeld)*100);
+    stat='<p>最長トラッキング <b style="color:var(--accent2)">'+G.bestStreak.toFixed(1)+'s</b> ／ 命中率 <b style="color:var(--good)">'+acc+'%</b></p>';
+  }
+  centerMsg.innerHTML='<h1>TIME UP</h1>'+
+    '<p>スコア <b style="color:var(--accent);font-size:22px">'+Math.floor(G.score)+'</b></p>'+
+    stat+
+    '<p>所持ポイント <b style="color:var(--gold)">'+Math.floor(G.points)+'</b>（強化は引き継ぎ）</p>'+
+    '<button id="restartBtn" class="bigbtn">もう一回</button>'+
+    (IS_TOUCH ? '<button id="shopBtn" class="bigbtn" style="margin-left:10px;background:linear-gradient(90deg,var(--gold),#ffe79a)">🛒 強化</button>' : '');
+  document.getElementById('restartBtn').addEventListener('click', startGame);
+  if(IS_TOUCH) document.getElementById('shopBtn').addEventListener('click', ()=>{
+    centerMsg.classList.add('hidden'); shop.classList.add('overlay');
+  });
+  sndBonus();
+}
+
+// keys
+window.addEventListener('keydown',(e)=>{
+  if(e.key==='r'||e.key==='R') startGame();
+});
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+
+// resize
+function onResize(){
+  W=wrap.clientWidth; H=wrap.clientHeight;
+  if(renderer){ renderer.setSize(W,H,false); camera.aspect=W/H; camera.updateProjectionMatrix(); }
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', ()=>setTimeout(onResize, 200));
+
+// ---------- touch controls ----------
+const STICK_SPEED = 2.3;     // スティック最大倒し時の視点速度 (rad/sec、感度倍率で増減)
+let stickId = null, stickX = 0, stickY = 0, fireId = null;
+
+function enterPlay(){   // スマホ: 擬似ロックでプレイ開始/再開
+  G.locked = true; G.paused = false;
+  document.body.classList.add('playing');
+  shop.classList.remove('overlay');
+  centerMsg.classList.add('hidden');
+  crossEl.classList.remove('hidden'); crossDot.classList.remove('hidden');
+}
+function pausePlay(){    // スマホ: 照準解除してショップ全画面
+  G.locked = false; G.paused = true; G.holding = false;
+  document.body.classList.remove('playing');
+  shop.classList.add('overlay');
+  crossEl.classList.add('hidden'); crossDot.classList.add('hidden');
+  stickX = 0; stickY = 0; stickId = null; stickKnob.style.transform = 'translate(0,0)';
+}
+
+function stickPlace(t){
+  const r = stick.getBoundingClientRect();
+  const cx = r.left + r.width/2, cy = r.top + r.height/2, max = r.width/2;
+  let dx = t.clientX - cx, dy = t.clientY - cy;
+  const d = Math.hypot(dx, dy);
+  if(d > max){ dx = dx/d*max; dy = dy/d*max; }
+  stickKnob.style.transform = 'translate('+dx+'px,'+dy+'px)';
+  stickX = dx/max; stickY = dy/max;
+}
+function onTouchStartStick(e){
+  if(stickId!==null) return;
+  const t = e.changedTouches[0]; stickId = t.identifier;
+  stickPlace(t); e.preventDefault();
+}
+function onTouchMove(e){
+  if(stickId===null) return;
+  for(const t of e.changedTouches){ if(t.identifier===stickId){ stickPlace(t); e.preventDefault(); } }
+}
+function onTouchEnd(e){
+  for(const t of e.changedTouches){
+    if(t.identifier===stickId){ stickId=null; stickX=0; stickY=0; stickKnob.style.transform='translate(0,0)'; }
+    if(t.identifier===fireId){ fireId=null; G.holding=false; }
+  }
+}
+function onFireStart(e){
+  e.preventDefault();
+  if(!G.running || G.over || G.paused) return;
+  fireId = e.changedTouches[0].identifier;
+  if(G.mode==='flick') shootFlick(); else G.holding = true;
+}
+
+if(IS_TOUCH){
+  document.body.classList.add('touch');
+  stick.addEventListener('touchstart', onTouchStartStick, {passive:false});
+  fireBtn.addEventListener('touchstart', onFireStart, {passive:false});
+  document.addEventListener('touchmove', onTouchMove, {passive:false});
+  document.addEventListener('touchend', onTouchEnd);
+  document.addEventListener('touchcancel', onTouchEnd);
+  pauseBtn.addEventListener('click', ()=>{ if(G.running && !G.over) pausePlay(); });
+  resumeShop.addEventListener('click', ()=>{
+    if(G.over){ shop.classList.remove('overlay'); centerMsg.classList.remove('hidden'); }
+    else enterPlay();
+  });
+}
+
+// boot
+try {
+  initThree();
+  buildShop();
+  refreshHUD();
+  requestAnimationFrame(loop);
+} catch(err){
+  const el=document.getElementById('err');
+  el.style.display='flex';
+  el.innerHTML='3Dの初期化に失敗したかも。<br>CDN(Three.js)を読むのにネット接続が必要だよ。<br>オンラインで開き直してみて。<br><br><small>'+(err&&err.message||err)+'</small>';
+}
+</script>
+</body>
+</html>
