@@ -695,6 +695,9 @@ function loop(ts){
   if(!lastT) lastT=ts;
   let dt=(ts-lastT)/1000; lastT=ts; if(dt>0.1) dt=0.1;
 
+  // 表示サイズが変わってたら追従（初期化タイミング/アドレスバー/回転対策）
+  if(canvas.clientWidth!==W || canvas.clientHeight!==H) onResize();
+
   if(G.running && !G.paused && !G.over){
     // タッチ: スティックの倒し量で視点を連続移動
     if(IS_TOUCH && (stickX!==0 || stickY!==0)){
@@ -812,9 +815,11 @@ window.addEventListener('keydown',(e)=>{
 
 document.getElementById('startBtn').addEventListener('click', startGame);
 
-// resize
+// resize — canvas の実表示サイズ基準で合わせる（アドレスバー伸縮/回転にも追従）
 function onResize(){
-  W=wrap.clientWidth; H=wrap.clientHeight;
+  const w=canvas.clientWidth, h=canvas.clientHeight;
+  if(!w || !h) return;
+  W=w; H=h;
   if(renderer){ renderer.setSize(W,H,false); camera.aspect=W/H; camera.updateProjectionMatrix(); }
 }
 window.addEventListener('resize', onResize);
