@@ -141,13 +141,6 @@
   #pauseBtn { position:absolute; top:max(12px, env(safe-area-inset-top)); right:max(12px, env(safe-area-inset-right));
     width:46px; height:46px; border-radius:10px; background:rgba(20,24,38,.7);
     border:1px solid #2a3147; color:var(--text); font-size:18px; pointer-events:auto; }
-  /* ショップ内「戻る」 (タッチ時のみ) */
-  #resumeShop { display:none; margin:0 12px 12px; }
-
-  body.touch #shop { display:none; }
-  body.touch #shop.overlay { display:flex; position:absolute; inset:0; z-index:20;
-    width:100%; flex:1 1 auto; border-left:none; }
-  body.touch #shop.overlay #resumeShop { display:block; }
   body.touch #hud { gap:8px; padding:max(10px, env(safe-area-inset-top)) 12px 10px; }
   body.touch .stat { min-width:60px; padding:5px 9px; }
   body.touch .stat .value { font-size:17px; }
@@ -172,61 +165,89 @@
       <div class="stat"><div class="label">Wave</div><div class="value" id="hWave">1</div></div>
       <div class="stat"><div class="label">Points</div><div class="value gold" id="hPts">0</div></div>
     </div>
-    <div id="centerMsg">
-      <h1>AIM × CLICKER 3D</h1>
-      <p>クリックで照準ロック → マウスで視点を動かして、奥の的を中央クロスヘアで狙い撃ち。素早く繋ぐほど高得点。</p>
-      <p>稼いだ <b style="color:var(--gold)">Points</b> で右のショップを永続強化してく放置成長エイトレ。<br>
-      <kbd>ESC</kbd> で照準解除してショップ購入 → 画面クリックで再開。</p>
-      <button id="startBtn" class="bigbtn">START</button>
-    </div>
+    <div id="centerMsg" class="hidden"></div>
     <div id="err"></div>
     <div id="touchUI">
       <div id="stick"><div id="stickKnob"></div></div>
       <button id="fireBtn">FIRE</button>
       <button id="pauseBtn">⏸</button>
     </div>
-  </div>
 
-  <div id="shop">
-    <div id="shopHead">
-      <h2>UPGRADE SHOP</h2>
-      <div class="bank">所持ポイント: <b id="bankPts">0</b></div>
+    <!-- ===== ロビー（ホーム） ===== -->
+    <div id="lobby" class="screen">
+      <h1 class="bigTitle">AIM × CLICKER 3D</h1>
+      <p class="screenSub">ロビー ― 行き先を選んでな</p>
+      <div class="cards">
+        <button class="card" id="lbRange">
+          <div class="cIcon">🎯</div><div class="cName">射撃場</div>
+          <div class="cDesc">的を撃ってスコア＆ポイント稼ぎ</div>
+        </button>
+        <button class="card" id="lbShop">
+          <div class="cIcon">🛒</div><div class="cName">ショップ</div>
+          <div class="cDesc">ポイントで永続強化</div>
+        </button>
+        <button class="card" id="lbSettings">
+          <div class="cIcon">⚙</div><div class="cName">設定</div>
+          <div class="cDesc">感度・Y反転・ゲーム感度合わせ</div>
+        </button>
+      </div>
+      <div class="screenBank">所持ポイント: <b id="lobbyPts">0</b></div>
     </div>
-    <button id="resumeShop" class="bigbtn">▶ ゲームに戻る</button>
-    <div id="upgrades"></div>
-    <div id="settings">
-      <div class="setRow">
-        <label>練習モード</label>
-        <div class="modeToggle">
-          <button id="modeFlick" class="modeBtn active">フリック</button>
-          <button id="modeTrack" class="modeBtn">トラッキング</button>
+
+    <!-- ===== 射撃場：モード選択 ===== -->
+    <div id="modeSelect" class="screen hidden">
+      <h1 class="bigTitle">射撃場</h1>
+      <p class="screenSub">練習モードを選んで</p>
+      <div class="cards">
+        <button class="card" id="msFlick">
+          <div class="cIcon">⚡</div><div class="cName">フリック</div>
+          <div class="cDesc">パッと振って単発で撃ち抜く</div>
+        </button>
+        <button class="card" id="msTrack">
+          <div class="cIcon">🎯</div><div class="cName">トラッキング</div>
+          <div class="cDesc">動く的に照準を乗せ続ける</div>
+        </button>
+      </div>
+      <button class="backBtn" id="msBack">← ロビーに戻る</button>
+    </div>
+
+    <!-- ===== ショップ ===== -->
+    <div id="shopScreen" class="screen hidden panel">
+      <div class="panelHead">
+        <h2>🛒 UPGRADE SHOP</h2>
+        <div class="bank">所持ポイント: <b id="bankPts">0</b></div>
+      </div>
+      <div id="upgrades"></div>
+      <button class="backBtn" id="shopBack">← ロビーに戻る</button>
+    </div>
+
+    <!-- ===== 設定 ===== -->
+    <div id="settingsScreen" class="screen hidden panel">
+      <div class="panelHead"><h2>⚙ 設定</h2></div>
+      <div id="settings">
+        <div class="setRow">
+          <label for="sensSlider">マウス／スティック感度 <b id="sensVal">1.00</b>×</label>
+          <input type="range" id="sensSlider" min="0.1" max="3" step="0.01" value="1" />
+        </div>
+        <div class="setRow inline">
+          <label for="invertChk">Y軸反転</label>
+          <input type="checkbox" id="invertChk" />
+        </div>
+        <div class="setRow gamematch">
+          <label>ゲーム感度から合わせる</label>
+          <select id="gameSel">
+            <option value="">— ゲーム選択 —</option>
+            <option value="0.022">Apex Legends</option>
+            <option value="0.0066">Overwatch 2</option>
+          </select>
+          <div class="gmRow">
+            <input type="number" id="gameSens" min="0.01" step="0.01" placeholder="ゲーム内sens" />
+            <button id="applyGame" class="minibtn">適用</button>
+          </div>
+          <div id="gameInfo"></div>
         </div>
       </div>
-      <div class="setRow">
-        <label for="sensSlider">マウス感度 <b id="sensVal">1.00</b>×</label>
-        <input type="range" id="sensSlider" min="0.1" max="3" step="0.01" value="1" />
-      </div>
-      <div class="setRow inline">
-        <label for="invertChk">Y軸反転</label>
-        <input type="checkbox" id="invertChk" />
-      </div>
-      <div class="setRow gamematch">
-        <label>ゲーム感度から合わせる</label>
-        <select id="gameSel">
-          <option value="">— ゲーム選択 —</option>
-          <option value="0.022">Apex Legends</option>
-          <option value="0.0066">Overwatch 2</option>
-        </select>
-        <div class="gmRow">
-          <input type="number" id="gameSens" min="0.01" step="0.01" placeholder="ゲーム内sens" />
-          <button id="applyGame" class="minibtn">適用</button>
-        </div>
-        <div id="gameInfo"></div>
-      </div>
-    </div>
-    <div id="shopFoot">
-      クリックで射撃 / ESCで照準解除して強化購入<br>
-      <kbd>R</kbd> リスタート　<kbd>ESC</kbd> ポーズ＆ショップ
+      <button class="backBtn" id="setBack">← ロビーに戻る</button>
     </div>
   </div>
 </div>
@@ -242,7 +263,6 @@ const wrap = document.getElementById('arenaWrap');
 const popups = document.getElementById('popups');
 const crossEl = document.getElementById('cross');
 const crossDot = document.getElementById('crossDot');
-const shop = document.getElementById('shop');
 
 // タッチ端末判定（PC操作はそのまま、タッチ時だけ別系統を有効化）
 const IS_TOUCH = window.matchMedia('(pointer:coarse)').matches
@@ -251,7 +271,13 @@ const stick = document.getElementById('stick');
 const stickKnob = document.getElementById('stickKnob');
 const fireBtn = document.getElementById('fireBtn');
 const pauseBtn = document.getElementById('pauseBtn');
-const resumeShop = document.getElementById('resumeShop');
+const lobbyPtsEl = document.getElementById('lobbyPts');
+
+// 画面（ロビー/モード選択/ショップ/設定）の切り替え
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));
+  if(id){ const el=document.getElementById(id); if(el) el.classList.remove('hidden'); }
+}
 
 // ---------- renderer / scene ----------
 let renderer, scene, camera;
@@ -521,7 +547,7 @@ document.addEventListener('pointerlockchange', ()=>{
   crossDot.classList.toggle('hidden', !G.locked);
   if(G.locked) justLocked=true; else G.holding=false;
   if (G.running && !G.over){
-    if (G.locked){ G.paused=false; centerMsg.classList.add('hidden'); }
+    if (G.locked){ G.paused=false; centerMsg.classList.add('hidden'); document.body.classList.add('playing'); }
     else { G.paused=true; showPause(); }
   }
 });
@@ -555,22 +581,14 @@ canvas.addEventListener('mousedown', (e)=>{
 });
 canvas.addEventListener('mouseup', ()=>{ G.holding=false; });
 
-// ---- モード切替トグル ----
-const modeFlickBtn=document.getElementById('modeFlick');
-const modeTrackBtn=document.getElementById('modeTrack');
+// ---- モード選択（射撃場入口） ----
 try{ const m=localStorage.getItem('aim_mode'); if(m==='tracking'||m==='flick') G.mode=m; }catch(e){}
-function syncModeButtons(){
-  modeFlickBtn.classList.toggle('active', G.mode==='flick');
-  modeTrackBtn.classList.toggle('active', G.mode==='tracking');
-}
 function setMode(m){
-  G.mode=m; syncModeButtons();
+  G.mode=m;
   try{ localStorage.setItem('aim_mode', m); }catch(e){}
-  startGame();   // モード変更で即リスタート
 }
-modeFlickBtn.addEventListener('click', ()=>setMode('flick'));
-modeTrackBtn.addEventListener('click', ()=>setMode('tracking'));
-syncModeButtons();
+document.getElementById('msFlick').addEventListener('click', ()=>{ setMode('flick'); startGame(); });
+document.getElementById('msTrack').addEventListener('click', ()=>{ setMode('tracking'); startGame(); });
 
 // ---------- shop ----------
 const upWrap = document.getElementById('upgrades');
@@ -594,6 +612,7 @@ function buy(id){
 }
 function renderShop(){
   document.getElementById('bankPts').textContent=Math.floor(G.points);
+  if(lobbyPtsEl) lobbyPtsEl.textContent=Math.floor(G.points);
   upgrades.forEach(u=>{
     const el=upWrap.querySelector('[data-id="'+u.id+'"]'); if(!el) return;
     const maxed=u.lvl>=u.max, c=upCost(u);
@@ -761,6 +780,8 @@ function clearTargets(){
 function startGame(){
   audio();
   clearTargets();
+  showScreen(null);                       // ロビー等のオーバーレイを全部閉じる
+  document.body.classList.add('playing'); // HUD/タッチUIを表示
   G.running=true; G.over=false; G.paused=false;
   G.score=0; G.combo=0; G.bestCombo=0; G.hits=0; G.shots=0;
   G.holding=false; G.onTarget=false; G.trackHeld=0; G.trackHit=0; G.trackStreak=0; G.bestStreak=0;
@@ -773,17 +794,20 @@ function startGame(){
   requestLock();
 }
 function showPause(){
+  document.body.classList.remove('playing');
   centerMsg.classList.remove('hidden');
   centerMsg.innerHTML='<h1>PAUSED</h1>'+
-    '<p>照準を解除中。右のショップで強化を買える。<br>画面をクリックすると再開して照準ロック。</p>'+
-    '<button id="resumeBtn" class="bigbtn">再開（クリックでもOK）</button>';
+    '<p>照準を解除中。<br>'+(IS_TOUCH?'下のボタンで再開':'画面クリックで再開')+'できる。</p>'+
+    '<div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">'+
+    '<button id="resumeBtn" class="bigbtn">▶ 再開</button>'+
+    '<button id="toLobbyBtn" class="backBtn">← ロビーに戻る</button></div>';
   document.getElementById('resumeBtn').addEventListener('click', requestLock);
+  document.getElementById('toLobbyBtn').addEventListener('click', goLobby);
 }
 function endGame(){
   G.over=true; G.running=false;
   if(document.pointerLockElement) document.exitPointerLock();
   document.body.classList.remove('playing');
-  shop.classList.remove('overlay');
   crossEl.classList.add('hidden'); crossDot.classList.add('hidden');
   crossDot.style.background='';
   centerMsg.classList.remove('hidden');
@@ -799,21 +823,41 @@ function endGame(){
     '<p>スコア <b style="color:var(--accent);font-size:22px">'+Math.floor(G.score)+'</b></p>'+
     stat+
     '<p>所持ポイント <b style="color:var(--gold)">'+Math.floor(G.points)+'</b>（強化は引き継ぎ）</p>'+
+    '<div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">'+
     '<button id="restartBtn" class="bigbtn">もう一回</button>'+
-    (IS_TOUCH ? '<button id="shopBtn" class="bigbtn" style="margin-left:10px;background:linear-gradient(90deg,var(--gold),#ffe79a)">🛒 強化</button>' : '');
+    '<button id="toLobbyBtn2" class="backBtn">← ロビーに戻る</button></div>';
   document.getElementById('restartBtn').addEventListener('click', startGame);
-  if(IS_TOUCH) document.getElementById('shopBtn').addEventListener('click', ()=>{
-    centerMsg.classList.add('hidden'); shop.classList.add('overlay');
-  });
+  document.getElementById('toLobbyBtn2').addEventListener('click', goLobby);
   sndBonus();
 }
 
+// ---------- ロビー / 画面遷移 ----------
+function goLobby(){
+  G.running=false; G.over=false; G.paused=false; G.locked=false; G.holding=false;
+  if(document.pointerLockElement) document.exitPointerLock();
+  clearTargets();
+  document.body.classList.remove('playing');
+  crossEl.classList.add('hidden'); crossDot.classList.add('hidden');
+  centerMsg.classList.add('hidden');
+  stickX=0; stickY=0; stickId=null; if(stickKnob) stickKnob.style.transform='translate(0,0)';
+  renderShop();
+  showScreen('lobby');
+}
+function openModeSelect(){ showScreen('modeSelect'); }
+function openShop(){ renderShop(); showScreen('shopScreen'); }
+function openSettings(){ showScreen('settingsScreen'); }
+
+document.getElementById('lbRange').addEventListener('click', openModeSelect);
+document.getElementById('lbShop').addEventListener('click', openShop);
+document.getElementById('lbSettings').addEventListener('click', openSettings);
+document.getElementById('msBack').addEventListener('click', goLobby);
+document.getElementById('shopBack').addEventListener('click', goLobby);
+document.getElementById('setBack').addEventListener('click', goLobby);
+
 // keys
 window.addEventListener('keydown',(e)=>{
-  if(e.key==='r'||e.key==='R') startGame();
+  if((e.key==='r'||e.key==='R') && (G.running||G.over)) startGame();
 });
-
-document.getElementById('startBtn').addEventListener('click', startGame);
 
 // resize — canvas の実表示サイズ基準で合わせる（アドレスバー伸縮/回転にも追従）
 function onResize(){
@@ -832,16 +876,14 @@ let stickId = null, stickX = 0, stickY = 0, fireId = null;
 function enterPlay(){   // スマホ: 擬似ロックでプレイ開始/再開
   G.locked = true; G.paused = false;
   document.body.classList.add('playing');
-  shop.classList.remove('overlay');
   centerMsg.classList.add('hidden');
   crossEl.classList.remove('hidden'); crossDot.classList.remove('hidden');
 }
-function pausePlay(){    // スマホ: 照準解除してショップ全画面
+function pausePlay(){    // スマホ: 照準解除してポーズ画面
   G.locked = false; G.paused = true; G.holding = false;
-  document.body.classList.remove('playing');
-  shop.classList.add('overlay');
   crossEl.classList.add('hidden'); crossDot.classList.add('hidden');
   stickX = 0; stickY = 0; stickId = null; stickKnob.style.transform = 'translate(0,0)';
+  showPause();
 }
 
 function stickPlace(t){
@@ -882,11 +924,7 @@ if(IS_TOUCH){
   document.addEventListener('touchmove', onTouchMove, {passive:false});
   document.addEventListener('touchend', onTouchEnd);
   document.addEventListener('touchcancel', onTouchEnd);
-  pauseBtn.addEventListener('click', ()=>{ if(G.running && !G.over) pausePlay(); });
-  resumeShop.addEventListener('click', ()=>{
-    if(G.over){ shop.classList.remove('overlay'); centerMsg.classList.remove('hidden'); }
-    else enterPlay();
-  });
+  pauseBtn.addEventListener('click', ()=>{ if(G.running && !G.over && !G.paused) pausePlay(); });
 }
 
 // boot
