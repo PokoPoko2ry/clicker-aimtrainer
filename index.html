@@ -137,6 +137,29 @@
     border:2px solid var(--accent2); color:#fff; font-size:13px; font-weight:800; letter-spacing:.1em;
     pointer-events:auto; touch-action:none; box-shadow:0 0 18px rgba(255,93,143,.3); }
   #fireBtn:active { background:rgba(255,93,143,.55); transform:scale(.96); }
+  /* リロードボタン（タッチ・フリック時のみ） */
+  #reloadBtn { position:absolute; right:max(34px, env(safe-area-inset-right)); bottom:148px;
+    width:62px; height:62px; border-radius:50%; background:rgba(20,24,38,.62);
+    border:2px solid var(--accent); color:var(--accent); pointer-events:auto; touch-action:none;
+    display:none; align-items:center; justify-content:center; }
+  #reloadBtn svg { width:26px; height:26px; }
+  #reloadBtn:active { background:rgba(74,217,255,.3); transform:scale(.94); }
+  body.touch.playing.flick #reloadBtn { display:flex; }
+  /* 弾数表示（PC/スマホ共通・フリック時のみ） */
+  #ammoBox { position:absolute; left:50%; bottom:26px; transform:translateX(-50%);
+    z-index:6; text-align:center; pointer-events:none; user-select:none; display:none; }
+  body.playing.flick #ammoBox { display:block; }
+  #ammoCount { font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
+  #ammoNow { font-size:32px; color:var(--text); }
+  #ammoNow svg { width:24px; height:24px; animation:spin .8s linear infinite; }
+  #ammoMax { font-size:16px; color:var(--muted); margin-left:2px; }
+  #ammoBar { width:128px; height:5px; margin:5px auto 0; border-radius:3px;
+    background:rgba(255,255,255,.12); overflow:hidden; }
+  #ammoFill { height:100%; width:100%; background:var(--accent); border-radius:3px; transition:width .05s linear; }
+  #ammoBox.reloading #ammoNow { color:var(--accent2); }
+  #ammoBox.reloading #ammoFill { background:var(--accent2); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  body.touch #ammoBox { bottom:104px; }
   /* 一時停止 */
   #pauseBtn { position:absolute; top:max(12px, env(safe-area-inset-top)); right:max(12px, env(safe-area-inset-right));
     width:46px; height:46px; border-radius:10px; background:rgba(20,24,38,.7);
@@ -167,9 +190,14 @@
     </div>
     <div id="centerMsg" class="hidden"></div>
     <div id="err"></div>
+    <div id="ammoBox" class="hidden">
+      <div id="ammoCount"><span id="ammoNow">12</span><span id="ammoMax">/12</span></div>
+      <div id="ammoBar"><div id="ammoFill"></div></div>
+    </div>
     <div id="touchUI">
       <div id="stick"><div id="stickKnob"></div></div>
       <button id="fireBtn">FIRE</button>
+      <button id="reloadBtn" title="リロード"></button>
       <button id="pauseBtn">⏸</button>
     </div>
 
@@ -271,7 +299,12 @@ const stick = document.getElementById('stick');
 const stickKnob = document.getElementById('stickKnob');
 const fireBtn = document.getElementById('fireBtn');
 const pauseBtn = document.getElementById('pauseBtn');
+const reloadBtn = document.getElementById('reloadBtn');
 const lobbyPtsEl = document.getElementById('lobbyPts');
+const ammoBox = document.getElementById('ammoBox');
+const ammoNowEl = document.getElementById('ammoNow');
+const ammoMaxEl = document.getElementById('ammoMax');
+const ammoFill = document.getElementById('ammoFill');
 
 // 画面（ロビー/モード選択/ショップ/設定）の切り替え
 function showScreen(id){
@@ -339,12 +372,20 @@ function sndHit(c){ beep(420+Math.min(c,30)*22,0.09,'triangle',0.16); }
 function sndMiss(){ beep(150,0.14,'sawtooth',0.12); }
 function sndBuy(){ beep(660,0.07,'square',0.12); setTimeout(()=>beep(880,0.09,'square',0.12),60); }
 function sndBonus(){ beep(880,0.08,'triangle',0.15); setTimeout(()=>beep(1320,0.12,'triangle',0.15),70); }
+function sndEmpty(){ beep(120,0.04,'square',0.07); setTimeout(()=>beep(95,0.04,'square',0.06),45); }
+function sndReloadStart(){ beep(240,0.06,'square',0.10); }
+function sndReloadDone(){ beep(520,0.05,'square',0.12); setTimeout(()=>beep(700,0.06,'square',0.12),55); }
+
+// リロード用アイコン（銃のリロードでおなじみの円形矢印）
+const RELOAD_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" style="vertical-align:-3px" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.64-6.36"/><path d="M3 3.5V8h4.5"/></svg>';
 
 // ---------- upgrades ----------
 const upgrades = [
   { id:'mult', name:'得点倍率', icon:'✖', desc:'撃破スコアとポイント獲得が増える。基礎火力。', base:20, growth:1.55, lvl:0, max:40, effect:l=>1+l*0.25 },
   { id:'size', name:'的のデカさ補正', icon:'◎', desc:'的が少しずつ大きくなって当てやすくなる。', base:30, growth:1.6, lvl:0, max:20, effect:l=>1+l*0.06 },
   { id:'life', name:'的の滞在時間', icon:'⏱', desc:'的が消えるまでの猶予が伸びる。取りこぼし減。', base:35, growth:1.6, lvl:0, max:18, effect:l=>1+l*0.10 },
+  { id:'mag', name:'弾倉容量', icon:'🔋', desc:'マガジンの最大弾数が増える。リロード回数が減る。(フリック)', base:40, growth:1.55, lvl:0, max:12, effect:l=>12+l*2 },
+  { id:'reload', name:'リロード速度', icon:RELOAD_SVG, desc:'リロードにかかる時間を短縮する。(フリック)', base:45, growth:1.6, lvl:0, max:12, effect:l=>1/(1+l*0.18) },
   { id:'spawn', name:'同時出現数', icon:'⧉', desc:'同時に出る的の上限が増える。手数アップ。', base:60, growth:1.75, lvl:0, max:8, effect:l=>3+l },
   { id:'combo', name:'コンボ保護', icon:'🛡', desc:'ミスしてもコンボが一定割合残る。', base:80, growth:1.9, lvl:0, max:8, effect:l=>Math.min(0.8,l*0.1) },
   { id:'bot', name:'オートボット', icon:'🤖', desc:'自動で的を撃つ相棒。放置でも稼ぐ。', base:120, growth:1.8, lvl:0, max:12, effect:l=>l },
@@ -363,7 +404,12 @@ const G = {
   timeLeft:ROUND_TIME, wave:1, elapsed:0,
   targets:[], effects:[], lastSpawn:0, botTimer:0,
   holding:false, onTarget:false, trackHeld:0, trackHit:0, trackStreak:0, bestStreak:0,
+  ammo:0, reloading:false, reloadTimer:0,
 };
+
+const BASE_RELOAD = 1.8;                       // リロード基本時間(秒)
+function magSize(){ return Math.round(eff('mag')); }
+function reloadTime(){ return BASE_RELOAD*eff('reload'); }
 
 function difficulty(){ return G.elapsed; }
 function spawnInterval(){ return Math.max(0.30, 0.95 - difficulty()*0.012); }
@@ -558,7 +604,31 @@ function requestLock(){
 
 // shooting
 const raycaster = new THREE.Raycaster();
+function updateAmmoHUD(){
+  if(G.mode!=='flick') return;
+  const max=magSize();
+  ammoMaxEl.textContent='/'+max;
+  if(G.reloading){
+    ammoBox.classList.add('reloading');
+    ammoNowEl.innerHTML=RELOAD_SVG;
+    const p=1-Math.max(0,G.reloadTimer)/reloadTime();
+    ammoFill.style.width=(p*100).toFixed(0)+'%';
+  } else {
+    ammoBox.classList.remove('reloading');
+    ammoNowEl.textContent=G.ammo;
+    ammoFill.style.width=(max>0?G.ammo/max*100:0).toFixed(0)+'%';
+  }
+}
+function startReload(){
+  if(G.reloading || G.ammo>=magSize()) return;
+  G.reloading=true; G.reloadTimer=reloadTime();
+  sndReloadStart(); updateAmmoHUD();
+}
+function manualReload(){ if(G.mode==='flick') startReload(); }
 function shootFlick(){
+  if(G.reloading){ return; }              // リロード中は撃てない
+  if(G.ammo<=0){ sndEmpty(); startReload(); return; }  // 弾切れ→自動リロード
+  G.ammo--;
   G.shots++;
   raycaster.setFromCamera({x:0,y:0}, camera);
   const meshes = G.targets.map(t=>t.mesh);
@@ -571,6 +641,8 @@ function shootFlick(){
     G.combo = Math.floor(G.combo*eff('combo'));
     sndMiss();
   }
+  if(G.ammo<=0) startReload();            // 最後の1発を撃ったら自動リロード
+  updateAmmoHUD();
   refreshHUD();
 }
 canvas.addEventListener('mousedown', (e)=>{
@@ -727,6 +799,12 @@ function loop(ts){
     G.elapsed+=dt; G.timeLeft-=dt; G.wave=1+Math.floor(G.elapsed/10);
     if(G.timeLeft<=0){ G.timeLeft=0; endGame(); }
     if(G.mode==='flick'){
+      // リロード進行
+      if(G.reloading){
+        G.reloadTimer-=dt;
+        if(G.reloadTimer<=0){ G.ammo=magSize(); G.reloading=false; sndReloadDone(); }
+        updateAmmoHUD();
+      }
       G.lastSpawn+=dt;
       if(G.lastSpawn>=spawnInterval() && G.targets.length<maxTargets()){ G.lastSpawn=0; spawnTarget(); }
       // expire
@@ -786,11 +864,13 @@ function startGame(){
   G.score=0; G.combo=0; G.bestCombo=0; G.hits=0; G.shots=0;
   G.holding=false; G.onTarget=false; G.trackHeld=0; G.trackHit=0; G.trackStreak=0; G.bestStreak=0;
   G.timeLeft=ROUND_TIME; G.elapsed=0; G.wave=1; G.lastSpawn=0; G.botTimer=0;
+  G.ammo=magSize(); G.reloading=false; G.reloadTimer=0;
+  document.body.classList.toggle('flick', G.mode==='flick');
   yaw=0; pitch=0; applyLook();
   crossDot.style.background='';   // トラッキングの色フィードバックを既定に戻す
   centerMsg.classList.add('hidden');
   if(G.mode==='flick') spawnTarget(); else spawnTrackTarget();
-  refreshHUD(); renderShop();
+  updateAmmoHUD(); refreshHUD(); renderShop();
   requestLock();
 }
 function showPause(){
@@ -856,7 +936,9 @@ document.getElementById('setBack').addEventListener('click', goLobby);
 
 // keys
 window.addEventListener('keydown',(e)=>{
-  if((e.key==='r'||e.key==='R') && (G.running||G.over)) startGame();
+  if(e.key!=='r' && e.key!=='R') return;
+  if(G.running && !G.over && !G.paused) manualReload();  // プレイ中はリロード
+  else if(G.over) startGame();                           // TIME UP中はリスタート
 });
 
 // resize — canvas の実表示サイズ基準で合わせる（アドレスバー伸縮/回転にも追従）
@@ -919,6 +1001,8 @@ function onFireStart(e){
 
 if(IS_TOUCH){
   document.body.classList.add('touch');
+  reloadBtn.innerHTML = RELOAD_SVG;
+  reloadBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); manualReload(); }, {passive:false});
   stick.addEventListener('touchstart', onTouchStartStick, {passive:false});
   fireBtn.addEventListener('touchstart', onFireStart, {passive:false});
   document.addEventListener('touchmove', onTouchMove, {passive:false});
