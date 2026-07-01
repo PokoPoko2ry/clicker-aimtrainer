@@ -170,6 +170,44 @@
   body.touch .stat .label { font-size:9px; }
   body.touch #centerMsg h1 { font-size:34px; }
   body.touch #centerMsg p { font-size:13px; padding:0 16px; }
+
+  /* ---------- screens (lobby / mode / shop / settings) ---------- */
+  .screen { position:absolute; inset:0; z-index:8; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center; padding:28px 20px;
+    background:radial-gradient(120% 90% at 50% 0%, rgba(20,24,38,.82), rgba(6,7,13,.94));
+    backdrop-filter:blur(4px); overflow-y:auto; }
+  .screen.hidden { display:none; }
+  .screen.panel { justify-content:flex-start; }
+  .bigTitle { font-size:44px; margin:0 0 6px; letter-spacing:.04em; font-weight:800;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .screenSub { color:var(--muted); margin:0 0 26px; font-size:14px; }
+  .cards { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; max-width:760px; }
+  .card { width:210px; padding:22px 18px; border-radius:16px; cursor:pointer; color:var(--text);
+    background:var(--panel2); border:1px solid #2a3147; transition:border-color .12s, transform .08s, box-shadow .12s; }
+  .card:hover { border-color:var(--accent); box-shadow:0 8px 26px rgba(74,217,255,.18); transform:translateY(-2px); }
+  .card:active { transform:scale(.98); }
+  .card .cIcon { font-size:38px; line-height:1; margin-bottom:10px; }
+  .card .cName { font-size:19px; font-weight:700; margin-bottom:6px; }
+  .card .cDesc { font-size:12px; color:var(--muted); line-height:1.5; }
+  .screenBank { margin-top:26px; font-size:14px; color:var(--muted); }
+  .screenBank b { color:var(--gold); font-size:17px; }
+  .screenBank .best { color:var(--accent); }
+  #offlineNote { margin-top:12px; font-size:13px; color:var(--good);
+    background:rgba(92,255,157,.08); border:1px solid rgba(92,255,157,.25);
+    border-radius:10px; padding:8px 14px; display:none; }
+  .backBtn { margin-top:22px; padding:10px 26px; font-size:14px; font-weight:700; color:var(--text);
+    background:var(--panel2); border:1px solid #2a3147; border-radius:999px; cursor:pointer; transition:border-color .12s; }
+  .backBtn:hover { border-color:var(--accent); }
+  /* panel-style screens (shop / settings) */
+  .screen.panel { padding:0; }
+  .screen.panel .panelHead { width:100%; max-width:560px; padding:22px 22px 12px; text-align:left; }
+  .screen.panel .panelHead h2 { margin:0; font-size:22px; letter-spacing:.06em; color:var(--accent); }
+  .screen.panel .panelHead .bank { margin-top:6px; font-size:13px; color:var(--muted); }
+  .screen.panel .panelHead .bank b { color:var(--gold); font-size:16px; }
+  #shopScreen #upgrades { width:100%; max-width:560px; }
+  #settingsScreen #settings { width:100%; max-width:560px; text-align:left; }
+  .screen.panel .backBtn { margin:8px 0 28px; }
 </style>
 </head>
 <body>
@@ -182,7 +220,7 @@
     <div id="comboFlash"></div>
     <div id="hud">
       <div class="stat"><div class="label">Score</div><div class="value accent" id="hScore">0</div></div>
-      <div class="stat"><div class="label">Time</div><div class="value" id="hTime">60.0</div></div>
+      <div class="stat"><div class="label">Quota</div><div class="value" id="hTime">0/0</div></div>
       <div class="stat"><div class="label">Combo</div><div class="value pink" id="hCombo">0</div></div>
       <div class="stat"><div class="label">Accuracy</div><div class="value good" id="hAcc">100%</div></div>
       <div class="stat"><div class="label">Wave</div><div class="value" id="hWave">1</div></div>
@@ -219,7 +257,8 @@
           <div class="cDesc">感度・Y反転・ゲーム感度合わせ</div>
         </button>
       </div>
-      <div class="screenBank">所持ポイント: <b id="lobbyPts">0</b></div>
+      <div class="screenBank">所持ポイント: <b id="lobbyPts">0</b>　／　最高ウェーブ <b class="best" id="lobbyBest">1</b>　／　<span id="lobbyZone">射撃場</span></div>
+      <div id="offlineNote"></div>
     </div>
 
     <!-- ===== 射撃場：モード選択 ===== -->
@@ -339,25 +378,42 @@ function initThree() {
   buildRoom();
 }
 
+let roomWallMat, roomSideMat, roomGrid;   // ゾーンで色替えするために保持
 function buildRoom() {
   // far wall
-  const wallMat = new THREE.MeshStandardMaterial({ color:0x10141f, roughness:0.95, metalness:0.0 });
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(40, 24), wallMat);
+  roomWallMat = new THREE.MeshStandardMaterial({ color:0x10141f, roughness:0.95, metalness:0.0 });
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(40, 24), roomWallMat);
   back.position.set(0, 4, -11); scene.add(back);
   // floor
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40),
     new THREE.MeshStandardMaterial({ color:0x0b0e16, roughness:1 }));
   floor.rotation.x = -Math.PI/2; floor.position.y = 0; scene.add(floor);
   // grid helper on floor
-  const grid = new THREE.GridHelper(40, 40, 0x223052, 0x16203a);
-  grid.position.y = 0.01; scene.add(grid);
+  roomGrid = new THREE.GridHelper(40, 40, 0x223052, 0x16203a);
+  roomGrid.position.y = 0.01; scene.add(roomGrid);
   // side walls
-  const sideMat = new THREE.MeshStandardMaterial({ color:0x0d1019, roughness:1 });
-  const left = new THREE.Mesh(new THREE.PlaneGeometry(40, 24), sideMat);
+  roomSideMat = new THREE.MeshStandardMaterial({ color:0x0d1019, roughness:1 });
+  const left = new THREE.Mesh(new THREE.PlaneGeometry(40, 24), roomSideMat);
   left.rotation.y = Math.PI/2; left.position.set(-14, 4, -3); scene.add(left);
   const right = left.clone(); right.rotation.y = -Math.PI/2; right.position.x = 14; scene.add(right);
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), sideMat);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), roomSideMat);
   ceil.rotation.x = Math.PI/2; ceil.position.y = 13; scene.add(ceil);
+}
+
+// ---------- zones (ウェーブ到達で解放される環境＋全体倍率) ----------
+const ZONES = [
+  { wave:1,   name:'射撃場',            bg:0x06070d, wall:0x10141f, side:0x0d1019, tcol:0xd61f5c, tem:0xff3d72, mult:1 },
+  { wave:10,  name:'ネオン都市',        bg:0x0b0518, wall:0x1a0f2e, side:0x140a24, tcol:0x9b5cff, tem:0xc59bff, mult:2 },
+  { wave:25,  name:'クライオ基地',      bg:0x02121a, wall:0x0a2733, side:0x07202b, tcol:0x1fd6c9, tem:0x5cffe7, mult:4 },
+  { wave:50,  name:'軌道ステーション',  bg:0x05030f, wall:0x120c26, side:0x0d0820, tcol:0xffae20, tem:0xffd35c, mult:8 },
+  { wave:100, name:'特異点',            bg:0x120306, wall:0x2a0810, side:0x210610, tcol:0xff3860, tem:0xff6d8a, mult:16 },
+];
+function zoneForWave(w){ let z=ZONES[0]; for(const zz of ZONES){ if(w>=zz.wave) z=zz; } return z; }
+function applyZone(z){
+  if(scene){ scene.background=new THREE.Color(z.bg); if(scene.fog) scene.fog.color.setHex(z.bg); }
+  if(renderer) renderer.setClearColor(z.bg);
+  if(roomWallMat) roomWallMat.color.setHex(z.wall);
+  if(roomSideMat) roomSideMat.color.setHex(z.side);
 }
 
 // ---------- audio ----------
@@ -396,12 +452,12 @@ function upCost(u){ return Math.floor(u.base*Math.pow(u.growth,u.lvl)); }
 function eff(id){ const u=upgrades.find(x=>x.id===id); return u.effect(u.lvl); }
 
 // ---------- state ----------
-const ROUND_TIME = 60;
 const G = {
   running:false, paused:false, over:false, locked:false,
   mode:'flick',
   score:0, points:0, combo:0, bestCombo:0, hits:0, shots:0,
-  timeLeft:ROUND_TIME, wave:1, elapsed:0,
+  wave:1, bestWave:1, waveProg:0, bossActive:false, elapsed:0,
+  zone:null, zoneMult:1,
   targets:[], effects:[], lastSpawn:0, botTimer:0,
   holding:false, onTarget:false, trackHeld:0, trackHit:0, trackStreak:0, bestStreak:0,
   ammo:0, reloading:false, reloadTimer:0,
@@ -411,23 +467,96 @@ const BASE_RELOAD = 1.8;                       // リロード基本時間(秒)
 function magSize(){ return Math.round(eff('mag')); }
 function reloadTime(){ return BASE_RELOAD*eff('reload'); }
 
-function difficulty(){ return G.elapsed; }
+// ---------- 永続化（ポイント・強化Lv・最高ウェーブ） ----------
+const SAVE_KEY='aim_save';
+let offlineGain=0;
+function saveGame(){
+  try{
+    const up={}; upgrades.forEach(u=>{ up[u.id]=u.lvl; });
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v:1, points:Math.floor(G.points), best:G.bestWave, up, seen:Date.now()
+    }));
+  }catch(e){}
+}
+// 放置(オフライン)報酬：オートボット所持時のみ、上限2時間・控えめレートで加算
+function grantOffline(seenMs){
+  const bots=eff('bot'); if(bots<=0 || !seenMs) return;
+  const secs=Math.min((Date.now()-seenMs)/1000, 2*3600);
+  if(secs<60) return;
+  const perKill=Math.round(10*eff('mult')*0.5*eff('gold'));
+  const rate=bots/1.1;                       // ざっくり毎秒討伐数
+  const gain=Math.floor(perKill*rate*secs*0.2);
+  if(gain>0){ G.points+=gain; offlineGain=gain; }
+}
+function loadGame(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY); if(!raw) return;
+    const d=JSON.parse(raw);
+    if(typeof d.points==='number') G.points=d.points;
+    if(typeof d.best==='number') G.bestWave=Math.max(1,d.best);
+    if(d.up) upgrades.forEach(u=>{ if(typeof d.up[u.id]==='number') u.lvl=Math.max(0,Math.min(u.max,d.up[u.id])); });
+    grantOffline(d.seen);
+  }catch(e){}
+}
+
+// 難易度はウェーブ数で上がる（クリッカーの進行の背骨）
+function difficulty(){ return (G.wave-1)*3.5; }
 function spawnInterval(){ return Math.max(0.30, 0.95 - difficulty()*0.012); }
 function baseRadius(){ const shrink=Math.max(0.5,1-difficulty()*0.006); return 0.6*shrink*eff('size'); }
 function targetLife(){ const harder=Math.max(0.55,1-difficulty()*0.005); return (2.4*harder)*eff('life'); }
 function maxTargets(){ return Math.round(eff('spawn')); }
+
+// ---------- wave progression ----------
+// flick: ノルマ=討伐数 / tracking: ノルマ=照準を乗せ続けた秒数
+function waveQuota(){
+  return G.mode==='flick' ? 6 + Math.floor((G.wave-1)*1.4)
+                          : 5 + (G.wave-1)*1.2;
+}
+function isBossWave(){ return G.mode==='flick' && G.wave%5===0; }
+function bossHP(){ return 18 + G.wave*4; }
+
+function flashWave(){ flashCombo('WAVE '+G.wave); }
+function advanceWave(){
+  G.wave++;
+  G.waveProg=0;
+  const prevZone=G.zone;
+  const z=zoneForWave(G.wave);
+  G.zone=z; G.zoneMult=z.mult;
+  if(z!==prevZone){ applyZone(z); flashCombo('🌐 '+z.name+' 解放!'); sndBonus(); }
+  else flashWave();
+  if(G.wave>G.bestWave){ G.bestWave=G.wave; }
+  if(isBossWave()) startBoss();
+  saveGame();
+}
+function startBoss(){
+  clearTargets();
+  G.bossActive=true;
+  const r=1.4*eff('size');
+  const z=G.zone||ZONES[0];
+  const mat=new THREE.MeshStandardMaterial({ color:0xffae20, emissive:0xff7b1f,
+    emissiveIntensity:0.7, roughness:0.3, metalness:0.2 });
+  const mesh=new THREE.Mesh(sphereGeo, mat);
+  mesh.position.set(0, 2.8, -9.5); mesh.scale.setScalar(r);
+  scene.add(mesh);
+  const dot=new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color:0xffffff }));
+  dot.scale.setScalar(0.2); mesh.add(dot);
+  const hp=bossHP();
+  G.targets.push({ mesh, r, born:G.elapsed, life:Infinity, golden:false, pulse:0, hp, hpMax:hp, boss:true });
+  flashCombo('☠ BOSS WAVE ☠'); sndBonus();
+}
 
 // ---------- target meshes ----------
 const sphereGeo = new THREE.SphereGeometry(1, 24, 18);
 function spawnTarget(){
   const r = baseRadius();
   const golden = Math.random() < 0.06;
+  const zc = G.zone || ZONES[0];
   const x = -7.5 + Math.random()*15;
   const y = 0.7 + Math.random()*4.6;
   const z = -11 + 0.3 + Math.random()*3.5; // closer (bigger) .. farther (smaller)
   const mat = new THREE.MeshStandardMaterial({
-    color: golden ? 0xffae20 : 0xd61f5c,
-    emissive: golden ? 0xffd35c : 0xff3d72,
+    color: golden ? 0xffae20 : zc.tcol,
+    emissive: golden ? 0xffd35c : zc.tem,
     emissiveIntensity: 0.5, roughness:0.35, metalness:0.1,
   });
   const mesh = new THREE.Mesh(sphereGeo, mat);
@@ -437,7 +566,7 @@ function spawnTarget(){
   // inner bullseye dot
   const dot = new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color:0xffffff }));
   dot.scale.setScalar(0.28); mesh.add(dot);
-  G.targets.push({ mesh, r, born:G.elapsed, life:targetLife()*(golden?1.2:1), golden, pulse:Math.random()*6.28 });
+  G.targets.push({ mesh, r, born:G.elapsed, life:targetLife()*(golden?1.2:1), golden, pulse:Math.random()*6.28, hp:1 });
 }
 
 function projToScreen(pos){
@@ -478,18 +607,35 @@ function removeTarget(t){
 
 function killTarget(t, byBot){
   const pos = t.mesh.position.clone();
+  const wasBoss = !!t.boss;
   removeTarget(t);
   if (!byBot){ G.combo++; if(G.combo>G.bestCombo) G.bestCombo=G.combo; }
   const comboMult = 1 + Math.min(G.combo,50)*0.05;
   const goldMult = t.golden ? 5 : 1;
-  const gained = Math.round(10*eff('mult')*comboMult*goldMult);
+  const bossMult = wasBoss ? 12 : 1;
+  const gained = Math.round(10*eff('mult')*comboMult*goldMult*bossMult*G.zoneMult);
   const pts = Math.round(gained*0.5*eff('gold'));
   G.score += gained; G.points += pts;
-  burst(pos, t.golden?0xffd35c:(byBot?0x7af0ff:0xff5d8f));
-  addPop(pos, '+'+gained, t.golden?'#ffd35c':'#e7ecf5');
-  if (t.golden){ sndBonus(); flashCombo('BONUS!'); }
+  burst(pos, t.golden?0xffd35c:(wasBoss?0xffae20:(byBot?0x7af0ff:0xff5d8f)));
+  addPop(pos, '+'+gained, (t.golden||wasBoss)?'#ffd35c':'#e7ecf5');
+  if (wasBoss){ sndBonus(); flashCombo('BOSS撃破!'); }
+  else if (t.golden){ sndBonus(); flashCombo('BONUS!'); }
   else if (!byBot){ sndHit(G.combo); if(G.combo>0 && G.combo%10===0) flashCombo(G.combo+' COMBO!'); }
+  // ウェーブ進行
+  if (wasBoss){ G.bossActive=false; advanceWave(); }
+  else if (G.mode==='flick' && !G.bossActive){ G.waveProg++; if(G.waveProg>=waveQuota()) advanceWave(); }
   renderShop();
+}
+// 命中処理：ボスはHPを削り、0で撃破。通常の的は即撃破。
+function damageTarget(t, byBot){
+  if (t.boss && t.hp>1){
+    t.hp--;
+    t.mesh.material.emissiveIntensity=1.5;
+    burst(t.mesh.position.clone(), byBot?0x7af0ff:0xffd35c);
+    if(!byBot) sndHit(G.combo);
+    return;
+  }
+  killTarget(t, byBot);
 }
 
 // ---------- combo flash ----------
@@ -636,7 +782,7 @@ function shootFlick(){
   if (hits.length){
     const m = hits[0].object;
     const t = G.targets.find(tt=>tt.mesh===m);
-    if (t){ G.hits++; killTarget(t,false); }
+    if (t){ G.hits++; damageTarget(t,false); }
   } else {
     G.combo = Math.floor(G.combo*eff('combo'));
     sndMiss();
@@ -680,7 +826,7 @@ function buildShop(){
 function buy(id){
   const u=upgrades.find(x=>x.id===id); if(!u||u.lvl>=u.max) return;
   const c=upCost(u); if(G.points<c){ sndMiss(); return; }
-  G.points-=c; u.lvl++; sndBuy(); renderShop(); refreshHUD();
+  G.points-=c; u.lvl++; sndBuy(); renderShop(); refreshHUD(); saveGame();
 }
 function renderShop(){
   document.getElementById('bankPts').textContent=Math.floor(G.points);
@@ -699,7 +845,10 @@ function renderShop(){
 // ---------- HUD ----------
 function refreshHUD(){
   document.getElementById('hScore').textContent=Math.floor(G.score);
-  document.getElementById('hTime').textContent=G.timeLeft.toFixed(1);
+  const q=waveQuota();
+  const prog=G.mode==='flick' ? Math.min(G.waveProg,q)+'/'+q
+                              : Math.min(G.waveProg,q).toFixed(1)+'/'+q.toFixed(0);
+  document.getElementById('hTime').textContent = G.bossActive ? 'BOSS' : prog;
   document.getElementById('hWave').textContent=G.wave;
   document.getElementById('hPts').textContent=Math.floor(G.points);
   document.getElementById('bankPts').textContent=Math.floor(G.points);
@@ -751,8 +900,10 @@ function updateTracking(dt){
     G.trackHeld+=dt; G.trackHit+=dt; G.trackStreak+=dt;
     if(G.trackStreak>G.bestStreak) G.bestStreak=G.trackStreak;
     const comboMult=1+Math.min(G.trackStreak,12)*0.08;
-    const gain=75*eff('mult')*comboMult*dt;
+    const gain=75*eff('mult')*comboMult*G.zoneMult*dt;
     G.score+=gain; G.points+=gain*0.5*eff('gold');
+    // ウェーブ進行（照準を乗せ続けた秒数がノルマ）
+    G.waveProg+=dt; if(G.waveProg>=waveQuota()) advanceWave();
   } else if(G.holding){
     G.trackHeld+=dt; G.trackStreak=0;
   }
@@ -768,7 +919,7 @@ function updateBots(dt){
     if(G.mode==='flick'){
       if(G.targets.length>0){
         let oldest=G.targets[0]; for(const t of G.targets) if(t.born<oldest.born) oldest=t;
-        killTarget(oldest,true);
+        damageTarget(oldest,true);
       }
     } else {
       // トラッキング: ボットは自動で乗せてる扱いで加点
@@ -796,8 +947,7 @@ function loop(ts){
       pitch -= stickY*STICK_SPEED*sensMult*dt*(invertY?-1:1);
       applyLook();
     }
-    G.elapsed+=dt; G.timeLeft-=dt; G.wave=1+Math.floor(G.elapsed/10);
-    if(G.timeLeft<=0){ G.timeLeft=0; endGame(); }
+    G.elapsed+=dt;
     if(G.mode==='flick'){
       // リロード進行
       if(G.reloading){
@@ -806,7 +956,8 @@ function loop(ts){
         updateAmmoHUD();
       }
       G.lastSpawn+=dt;
-      if(G.lastSpawn>=spawnInterval() && G.targets.length<maxTargets()){ G.lastSpawn=0; spawnTarget(); }
+      // ボス戦中は通常の的を湧かせない
+      if(!G.bossActive && G.lastSpawn>=spawnInterval() && G.targets.length<maxTargets()){ G.lastSpawn=0; spawnTarget(); }
       // expire
       for(let i=G.targets.length-1;i>=0;i--){
         const t=G.targets[i];
@@ -826,6 +977,9 @@ function loop(ts){
   for(const t of G.targets){
     t.pulse+=dt*4;
     if(t.track){ t.mesh.scale.setScalar(t.r*(0.97+Math.sin(t.pulse)*0.03)); continue; } // 発光はupdateTracking側で制御
+    if(t.boss){ const hpf=t.hp/t.hpMax;
+      t.mesh.scale.setScalar(t.r*(0.6+0.4*hpf)*(0.97+Math.sin(t.pulse)*0.03));
+      t.mesh.material.emissiveIntensity=0.7+0.5*(Math.sin(G.elapsed*8)*0.5+0.5); continue; }
     const ageFrac=(G.elapsed-t.born)/t.life;
     const s=t.r*(0.97+Math.sin(t.pulse)*0.03);
     t.mesh.scale.setScalar(s);
@@ -857,13 +1011,15 @@ function clearTargets(){
 }
 function startGame(){
   audio();
+  offlineGain=0;
   clearTargets();
   showScreen(null);                       // ロビー等のオーバーレイを全部閉じる
   document.body.classList.add('playing'); // HUD/タッチUIを表示
   G.running=true; G.over=false; G.paused=false;
   G.score=0; G.combo=0; G.bestCombo=0; G.hits=0; G.shots=0;
   G.holding=false; G.onTarget=false; G.trackHeld=0; G.trackHit=0; G.trackStreak=0; G.bestStreak=0;
-  G.timeLeft=ROUND_TIME; G.elapsed=0; G.wave=1; G.lastSpawn=0; G.botTimer=0;
+  G.elapsed=0; G.wave=1; G.waveProg=0; G.bossActive=false; G.lastSpawn=0; G.botTimer=0;
+  G.zone=zoneForWave(1); G.zoneMult=G.zone.mult; applyZone(G.zone);
   G.ammo=magSize(); G.reloading=false; G.reloadTimer=0;
   document.body.classList.toggle('flick', G.mode==='flick');
   yaw=0; pitch=0; applyLook();
@@ -921,7 +1077,20 @@ function goLobby(){
   centerMsg.classList.add('hidden');
   stickX=0; stickY=0; stickId=null; if(stickKnob) stickKnob.style.transform='translate(0,0)';
   renderShop();
+  saveGame();
+  refreshLobby();
   showScreen('lobby');
+}
+function refreshLobby(){
+  const b=document.getElementById('lobbyBest'); if(b) b.textContent=G.bestWave;
+  const z=document.getElementById('lobbyZone'); if(z) z.textContent=zoneForWave(G.bestWave).name;
+  const p=document.getElementById('lobbyPts'); if(p) p.textContent=Math.floor(G.points);
+  const note=document.getElementById('offlineNote');
+  if(note){
+    if(offlineGain>0){ note.style.display='block';
+      note.textContent='おかえり！放置中のオートボットが +'+offlineGain+' pts 稼いだよ。'; }
+    else note.style.display='none';
+  }
 }
 function openModeSelect(){ showScreen('modeSelect'); }
 function openShop(){ renderShop(); showScreen('shopScreen'); }
@@ -1011,11 +1180,17 @@ if(IS_TOUCH){
   pauseBtn.addEventListener('click', ()=>{ if(G.running && !G.over && !G.paused) pausePlay(); });
 }
 
+// autosave（タブを閉じる/隠す時に seen を更新して保存）
+window.addEventListener('beforeunload', saveGame);
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) saveGame(); });
+
 // boot
 try {
   initThree();
+  loadGame();          // 保存済みの強化・ポイント・最高ウェーブを復元＋放置報酬
   buildShop();
   refreshHUD();
+  refreshLobby();
   requestAnimationFrame(loop);
 } catch(err){
   const el=document.getElementById('err');
